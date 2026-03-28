@@ -1,0 +1,92 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  color: #fff;
+}
+
+h1 {
+  margin-bottom: 16px;
+  font-size: 2rem;
+  letter-spacing: 2px;
+  color: #7ecfff;
+  text-shadow: 0 0 10px #3aa0ff88;
+}
+
+#controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#add-fish-btn {
+  background: #3aa0ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 0 8px #3aa0ff88;
+}
+
+#add-fish-btn:hover {
+  background: #1e80e0;
+}
+
+#fish-count {
+  font-size: 0.95rem;
+  color: #aee0ff;
+}
+
+#tank-wrapper {
+  position: relative;
+  border: 4px solid #3aa0ff;
+  border-radius: 12px;
+  box-shadow: 0 0 30px #3aa0ff44, inset 0 0 60px #0a2a4a88;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+#tank {
+  display: block;
+  background: linear-gradient(180deg, #0d3b6e 0%, #092541 60%, #061520 100%);
+}
+
+#legend {
+  margin-top: 12px;
+  display: flex;
+  gap: 18px;
+  font-size: 0.82rem;
+  color: #aee0ff;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot.normal  { background: #7ecfff; }
+.legend-dot.hungry  { background: #ffa040; }
+.legend-dot.dead    { background: #888; }
+.legend-dot.food    { background: #c8f060; }

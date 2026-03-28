@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fish Tank Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>🐟 Fish Tank Simulator</h1>
+
+  <div id="controls">
+    <button id="add-fish-btn">+ Add Fish</button>
+    <span id="fish-count">Fish: 0</span>
+  </div>
+
+  <div id="tank-wrapper">
+    <canvas id="tank" width="800" height="500"></canvas>
+  </div>
+
+  <div id="legend">
+    <div class="legend-item"><span class="legend-dot normal"></span> Healthy</div>
+    <div class="legend-item"><span class="legend-dot hungry"></span> Hungry</div>
+    <div class="legend-item"><span class="legend-dot dead"></span> Dead</div>
+    <div class="legend-item"><span class="legend-dot food"></span> Food</div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
