@@ -5,13 +5,13 @@
  *  - Press "Add Fish" ($100) to spawn a guppy.
  *  - Fish swim randomly around the tank.
  *  - After HUNGER_START_MS (20 s) without eating, a fish becomes hungry.
- *  - Click inside the tank to drop food ($5 per pellet); food drifts to the bottom.
+ *  - Click inside the tank to drop food ($5 per pellet); food drifts to the bottom and disappears.
  *  - A hungry fish detects food and swims rapidly toward it; eating resets hunger.
  *  - If a hungry fish is not fed within DEATH_AFTER_HUNGRY_MS (15 s) it dies.
  *  - Dead fish are shown briefly then removed.
  *  - Fish grow: guppy (2 pellets) → medium (5 more pellets) → large.
  *  - Medium fish drop $15 coins every 15 s; large fish drop $30 coins.
- *  - Coins drift to the bottom and are auto-collected.
+ *  - Coins drift to the bottom and disappear; click a coin to collect it.
  */
 
 (function () {
@@ -46,7 +46,7 @@
   // Coins
   const COIN_RADIUS       = 7;
   const COIN_DRIFT_SPEED  = 0.4;
-  const COIN_LINGER_MS    = 2_500;   // visible after settling before removal
+  const COIN_CLICK_TOLERANCE = 4;  // extra px around coin radius for easier clicking
   const COIN_INTERVAL_MS  = 15_000;
   const COIN_VALUE_MEDIUM = 15;
   const COIN_VALUE_LARGE  = 30;
@@ -327,15 +327,14 @@
     constructor(x, y) {
       this.x       = x;
       this.y       = y;
-      this.settled = false;
+      this.gone    = false;  // true once the pellet hits the bottom
     }
 
     update() {
-      if (!this.settled) {
+      if (!this.gone) {
         this.y += FOOD_DRIFT_SPEED;
         if (this.y >= H - FOOD_RADIUS) {
-          this.y       = H - FOOD_RADIUS;
-          this.settled = true;
+          this.gone = true;  // disappear at the bottom
         }
       }
     }
@@ -355,34 +354,35 @@
   // ── Coin class ───────────────────────────────────────────────────────────────
   class Coin {
     constructor(x, y, value) {
-      this.x           = x;
-      this.y           = y;
-      this.value       = value;
-      this.settled     = false;
-      this.settledTime = null;
+      this.x     = x;
+      this.y     = y;
+      this.value = value;
+      this.gone  = false;  // true once collected or it hits the bottom
     }
 
-    update(now) {
-      if (!this.settled) {
+    update() {
+      if (!this.gone) {
         this.y += COIN_DRIFT_SPEED;
         if (this.y >= H - COIN_RADIUS) {
-          this.y           = H - COIN_RADIUS;
-          this.settled     = true;
-          this.settledTime = now;
-          // Award money when coin reaches the bottom
-          money += this.value;
-          updateMoney();
+          this.gone = true;  // disappear at the bottom uncollected
         }
       }
     }
 
-    draw(now) {
-      const alpha = this.settled
-        ? Math.max(0, 1 - (now - this.settledTime) / COIN_LINGER_MS)
-        : 1;
+    /** Returns true if canvas point (cx, cy) is inside this coin. */
+    contains(cx, cy) {
+      return Math.hypot(cx - this.x, cy - this.y) <= COIN_RADIUS + COIN_CLICK_TOLERANCE;
+    }
 
+    /** Collect the coin: award money and mark it gone. */
+    collect() {
+      this.gone = true;
+      money += this.value;
+      updateMoney();
+    }
+
+    draw() {
       ctx.save();
-      ctx.globalAlpha = alpha;
 
       // Coin body
       ctx.beginPath();
@@ -410,10 +410,6 @@
 
       ctx.restore();
     }
-
-    shouldRemove(now) {
-      return this.settled && now - this.settledTime >= COIN_LINGER_MS;
-    }
   }
 
   // ── Game loop ────────────────────────────────────────────────────────────────
@@ -431,8 +427,8 @@
 
     // Update & draw coins
     for (const coin of coins) {
-      coin.update(now);
-      coin.draw(now);
+      coin.update();
+      coin.draw();
     }
 
     // Update & draw fish
@@ -441,14 +437,19 @@
       fish.draw(now);
     }
 
+    // Remove food pellets that have gone (reached the bottom or been eaten)
+    for (let i = foods.length - 1; i >= 0; i--) {
+      if (foods[i].gone) foods.splice(i, 1);
+    }
+
     // Remove fish that have lingered dead long enough
     for (let i = fishes.length - 1; i >= 0; i--) {
       if (fishes[i].shouldRemove(now)) fishes.splice(i, 1);
     }
 
-    // Remove coins that have settled and faded
+    // Remove coins that have been collected or reached the bottom
     for (let i = coins.length - 1; i >= 0; i--) {
-      if (coins[i].shouldRemove(now)) coins.splice(i, 1);
+      if (coins[i].gone) coins.splice(i, 1);
     }
 
     updateCount();
@@ -506,19 +507,28 @@
   });
 
   canvas.addEventListener('click', (e) => {
+    const rect  = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top)  * scaleY;
+
+    // Check if a coin was clicked first
+    for (let i = coins.length - 1; i >= 0; i--) {
+      if (!coins[i].gone && coins[i].contains(cx, cy)) {
+        coins[i].collect();
+        return;   // consume the click — don't drop food
+      }
+    }
+
+    // Otherwise drop a food pellet
     if (money < FOOD_COST) {
       flashNoMoney();
       return;
     }
     money -= FOOD_COST;
     updateMoney();
-
-    const rect  = canvas.getBoundingClientRect();
-    const scaleX = W / rect.width;
-    const scaleY = H / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top)  * scaleY;
-    foods.push(new Food(x, y));
+    foods.push(new Food(cx, cy));
   });
 
   // ── Start ────────────────────────────────────────────────────────────────────
