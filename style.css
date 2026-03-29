@@ -86,7 +86,30 @@ h1 {
   display: inline-block;
 }
 
+#money-display {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #ffd700;
+  text-shadow: 0 0 8px #ffaa0088;
+}
+
+.no-money {
+  font-size: 0.88rem;
+  color: #ff4444;
+  font-weight: bold;
+  transition: opacity 0.3s;
+}
+
+.no-money.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .legend-dot.normal  { background: #7ecfff; }
 .legend-dot.hungry  { background: #ffa040; }
 .legend-dot.dead    { background: #888; }
 .legend-dot.food    { background: #c8f060; }
+.legend-dot.coin       { background: #ffd700; }
+.legend-dot.guppy      { background: #7ecfff; width: 10px; height: 10px; }
+.legend-dot.medium-fish{ background: #7ecfff; width: 14px; height: 14px; }
+.legend-dot.large-fish { background: #7ecfff; width: 20px; height: 20px; }

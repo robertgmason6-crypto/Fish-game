@@ -10,8 +10,10 @@
   <h1>🐟 Fish Tank Simulator</h1>
 
   <div id="controls">
-    <button id="add-fish-btn">+ Add Fish</button>
+    <button id="add-fish-btn">+ Add Fish ($100)</button>
     <span id="fish-count">Fish: 0</span>
+    <span id="money-display">💰 $500</span>
+    <span id="no-money-msg" class="no-money hidden">Not enough money!</span>
   </div>
 
   <div id="tank-wrapper">
@@ -22,7 +24,11 @@
     <div class="legend-item"><span class="legend-dot normal"></span> Healthy</div>
     <div class="legend-item"><span class="legend-dot hungry"></span> Hungry</div>
     <div class="legend-item"><span class="legend-dot dead"></span> Dead</div>
-    <div class="legend-item"><span class="legend-dot food"></span> Food</div>
+    <div class="legend-item"><span class="legend-dot food"></span> Food ($5)</div>
+    <div class="legend-item"><span class="legend-dot coin"></span> Coin</div>
+    <div class="legend-item"><span class="legend-dot guppy"></span> Guppy</div>
+    <div class="legend-item"><span class="legend-dot medium-fish"></span> Medium</div>
+    <div class="legend-item"><span class="legend-dot large-fish"></span> Large</div>
   </div>
 
   <script src="game.js"></script>
