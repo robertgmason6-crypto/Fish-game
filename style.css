@@ -27,24 +27,54 @@ h1 {
   display: flex;
   gap: 12px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
-#add-fish-btn {
-  background: #3aa0ff;
+#shop {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  background: rgba(10, 40, 80, 0.6);
+  border: 1px solid #3aa0ff44;
+  border-radius: 8px;
+  max-width: 820px;
+}
+
+.shop-category {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.shop-title {
+  font-size: 0.8rem;
+  color: #7ecfff;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.shop-btn {
+  background: #1e4e8c;
   color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 24px;
-  font-size: 1rem;
+  border: 1px solid #3aa0ff66;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
   cursor: pointer;
   transition: background 0.2s;
-  box-shadow: 0 0 8px #3aa0ff88;
+  white-space: nowrap;
 }
 
-#add-fish-btn:hover {
-  background: #1e80e0;
-}
+.shop-btn:hover  { background: #2d6eb0; }
+.shop-btn:disabled { background: #2a2a3a; color: #666; cursor: not-allowed; border-color: #333; }
+
+.shop-btn-red              { border-color: #ff444466; }
+.shop-btn-red:hover        { background: #8c2020; }
+.shop-btn-red:not(:disabled) { border-color: #ff444466; }
 
 #fish-count {
   font-size: 0.95rem;
@@ -109,7 +139,15 @@ h1 {
 .legend-dot.hungry  { background: #ffa040; }
 .legend-dot.dead    { background: #888; }
 .legend-dot.food    { background: #c8f060; }
-.legend-dot.coin       { background: #ffd700; }
-.legend-dot.guppy      { background: #7ecfff; width: 10px; height: 10px; }
-.legend-dot.medium-fish{ background: #7ecfff; width: 14px; height: 14px; }
-.legend-dot.large-fish { background: #7ecfff; width: 20px; height: 20px; }
+.legend-dot.coin    { background: #ffd700; }
+.legend-dot.diamond {
+  background: linear-gradient(135deg, #b0e8ff, #fff, #7ec8ff);
+  border: 1px solid #4080c0;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.legend-dot.guppy       { background: #7ecfff; width: 10px; height: 10px; }
+.legend-dot.medium-fish { background: #7ecfff; width: 14px; height: 14px; }
+.legend-dot.large-fish  { background: #7ecfff; width: 20px; height: 20px; }
+.legend-dot.king-fish   { background: hsl(45,100%,65%); width: 22px; height: 22px; border: 2px solid #ffd700; }
+.legend-dot.carnivore-fish { background: hsl(10,80%,55%); width: 18px; height: 18px; }
