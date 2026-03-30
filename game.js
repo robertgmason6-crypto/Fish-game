@@ -13,15 +13,12 @@
  *  - Carnivore is bigger than king fish and follows the same hunger/death
  *    timing as a regular fish (eating a guppy resets its hunger).
  */
-
 (function () {
   'use strict';
 
   // ── Constants ─────────────────────────────────────────────────────────────────
   const HUNGER_START_MS       = 15_000;
   const DEATH_AFTER_HUNGRY_MS = 15_000;
-  const NORMAL_SPEED          = 1.2;
-  const HUNGRY_SEEK_SPEED     = 3.0;
 
   // Dead-fish drift
   const DEAD_DRIFT_MAX         = 0.5;
@@ -104,8 +101,11 @@
   const moneyEl   = document.getElementById('money-display');
   const noMoneyEl = document.getElementById('no-money-msg');
 
-  const W = canvas.width;
-  const H = canvas.height;
+  // ── Global state ─────────────────────────────────────────────────────────────
+  let money          = STARTING_MONEY;
+  let noMoneyTimer   = null;
+  let nextId         = 1;
+  let activeTankIdx  = 0;
 
   // ── Shared state ─────────────────────────────────────────────────────────────
   let money        = STARTING_MONEY;
@@ -134,7 +134,390 @@
   /** Returns the currently active tank's state. */
   function T() { return tanks[activeTank]; }
 
-  // ── Fish class ───────────────────────────────────────────────────────────────
+  // ── Coral ────────────────────────────────────────────────────────────────────
+  class Coral {
+    constructor(x, y) {
+      this.x             = x;
+      this.y             = y;
+      this.lastSpawnTime = performance.now();
+      // small per-coral angle offsets so each looks slightly different
+      this._lOff = (Math.random() - 0.5) * 0.3;
+      this._rOff = (Math.random() - 0.5) * 0.3;
+    }
+    update(now, tank) {
+      if (now - this.lastSpawnTime < CORAL_SPAWN_INTERVAL_MS) return;
+      const myNodes = tank.fancyCoralNodes.filter(
+        n => !n.gone && Math.hypot(n.x - this.x, n.y - this.y) < 100
+      );
+      if (myNodes.length < MAX_FANCY_NODES_PER_CORAL) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = 20 + Math.random() * 35;
+        tank.fancyCoralNodes.push(new FancyCoralNode(
+          Math.max(10, Math.min(W - 10, this.x + Math.cos(angle) * dist)),
+          Math.max(10, Math.min(H - 10, this.y + Math.sin(angle) * dist - 15))
+        ));
+      }
+      this.lastSpawnTime = now;
+    }
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      this._branch(0, 0, -Math.PI / 2, 38, 5, 0);
+      ctx.restore();
+    }
+    _branch(x, y, angle, len, width, depth) {
+      if (len < 7 || depth > 4) return;
+      const ex = x + Math.cos(angle) * len;
+      const ey = y + Math.sin(angle) * len;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = `hsl(350, 72%, ${42 + depth * 7}%)`;
+      ctx.lineWidth   = width;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      if (len < 13) {
+        ctx.beginPath();
+        ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle   = 'hsl(15, 85%, 62%)';
+        ctx.shadowColor = 'hsl(350, 90%, 70%)';
+        ctx.shadowBlur  = 5;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      this._branch(ex, ey, angle - 0.42 + this._lOff, len * 0.67, width * 0.70, depth + 1);
+      this._branch(ex, ey, angle + 0.38 + this._rOff, len * 0.67, width * 0.70, depth + 1);
+    }
+  }
+
+  // ── Shell ────────────────────────────────────────────────────────────────────
+  class Shell {
+    constructor(x, y) {
+      this.x       = x;
+      this.y       = y;
+      this.vy      = 0;
+      this.settled = false;
+      this.gone    = false;
+    }
+    update() {
+      if (this.settled) return;
+      this.vy  = Math.min(this.vy + 0.05, 1.5);
+      this.y  += this.vy;
+      if (this.y >= H - 14) { this.y = H - 14; this.settled = true; }
+    }
+    draw() {
+      if (this.gone) return;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = '#c8a878';
+      ctx.strokeStyle = '#8a6840';
+      ctx.lineWidth   = 1.5;
+      ctx.fill();
+      ctx.stroke();
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 5, -8);
+        ctx.lineTo(i * 5,  8);
+        ctx.strokeStyle = '#a07848';
+        ctx.lineWidth   = 0.7;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ── SpecialShell ─────────────────────────────────────────────────────────────
+  class SpecialShell {
+    constructor(x, y, value) {
+      this.x     = x;
+      this.y     = y;
+      this.value = value;
+      this.gone  = false;
+    }
+    contains(px, py) {
+      return Math.hypot(px - this.x, py - this.y) <= 18;
+    }
+    collect() {
+      this.gone  = true;
+      money     += this.value;
+      updateMoney();
+    }
+    draw() {
+      if (this.gone) return;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 17);
+      grad.addColorStop(0, '#ffd700');
+      grad.addColorStop(1, '#ff8c00');
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 10, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = grad;
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur  = 14;
+      ctx.fill();
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+      ctx.fillStyle    = '#fff';
+      ctx.font         = 'bold 8px Arial';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`$${this.value}`, 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.fillStyle    = '#ffd700';
+      ctx.font         = 'bold 9px Arial';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('✨ Click!', this.x, this.y - 16);
+      ctx.restore();
+    }
+  }
+
+  // ── Oyster ───────────────────────────────────────────────────────────────────
+  class Oyster {
+    constructor(x, y) {
+      this.x          = x;
+      this.y          = y;
+      this.stage      = 'small';
+      this.startTime  = performance.now();
+      this.hasPearl   = false;
+    }
+    reset() {
+      this.stage     = 'small';
+      this.startTime = performance.now();
+      this.hasPearl  = false;
+    }
+    update(now) {
+      if (this.stage === 'small' && now - this.startTime >= OYSTER_SMALL_MS) {
+        this.stage     = 'medium';
+        this.startTime = now;
+      } else if (this.stage === 'medium' && now - this.startTime >= OYSTER_MEDIUM_MS) {
+        this.stage    = 'grown';
+        this.hasPearl = true;
+      }
+    }
+    contains(px, py) {
+      return this.hasPearl && Math.hypot(px - this.x, py - this.y) <= 10;
+    }
+    collect(tank) {
+      this.hasPearl  = false;
+      money         += PEARL_VALUE;
+      updateMoney();
+      tank.shells.push(new Shell(this.x, this.y - 5));
+      this.stage     = 'small';
+      this.startTime = performance.now();
+    }
+    draw() {
+      const r = this.stage === 'grown' ? 10 : (this.stage === 'medium' ? 7 : 5);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 1.5, r, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = this.stage === 'grown' ? '#c8a060' : '#a0805a';
+      ctx.strokeStyle = '#7a5a30';
+      ctx.lineWidth   = 1;
+      ctx.fill();
+      ctx.stroke();
+      if (this.hasPearl) {
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.6, 5, 0, Math.PI * 2);
+        const pg = ctx.createRadialGradient(-1, -r * 0.6 - 1, 0, 0, -r * 0.6, 5);
+        pg.addColorStop(0, '#ffffff');
+        pg.addColorStop(0.5, '#e8e8f8');
+        pg.addColorStop(1, '#b0b8c8');
+        ctx.fillStyle   = pg;
+        ctx.shadowColor = '#aaaaff';
+        ctx.shadowBlur  = 8;
+        ctx.fill();
+        ctx.shadowBlur  = 0;
+        ctx.fillStyle    = '#ffffff';
+        ctx.font         = 'bold 8px Arial';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`$${PEARL_VALUE}`, 0, -r * 0.6 - 8);
+      }
+      ctx.restore();
+    }
+  }
+
+  // ── OysterRock ───────────────────────────────────────────────────────────────
+  class OysterRock {
+    constructor(x, y) {
+      this.x       = x;
+      this.y       = y;
+      const count  = 1 + Math.floor(Math.random() * 3);
+      this.oysters = [];
+      for (let i = 0; i < count; i++) {
+        const ox = x + (i - (count - 1) / 2) * 26;
+        this.oysters.push(new Oyster(ox, y - 14));
+      }
+    }
+    reseed() {
+      for (const o of this.oysters) o.reset();
+    }
+    update(now, tank) {
+      for (const o of this.oysters) o.update(now);
+    }
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 36, 20, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = '#7a6850';
+      ctx.strokeStyle = '#5a4830';
+      ctx.lineWidth   = 2;
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#6a5840';
+      ctx.beginPath();
+      ctx.ellipse(-11, -5, 10, 6, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(11, -3, 8, 5, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      for (const o of this.oysters) o.draw();
+    }
+  }
+
+  // ── HermitCrab ───────────────────────────────────────────────────────────────
+  class HermitCrab {
+    constructor(x) {
+      this.x           = x;
+      this.y           = H - 20;
+      this.vx          = (Math.random() < 0.5 ? -1 : 1) * HERMIT_CRAB_SPEED;
+      this.hasShell    = false;
+      this.goldCollected = 0;
+      this.radius      = 12;
+      this.spawnTime   = performance.now();
+      this.gone        = false;
+      this.targetShell = null;
+    }
+    update(now, tank) {
+      if (this.gone) return;
+
+      if (!this.hasShell) {
+        // Invalidate target if it disappeared
+        if (this.targetShell && this.targetShell.gone) this.targetShell = null;
+
+        // Die if no shell found after timeout (check for any shell, settled or falling)
+        if (now - this.spawnTime >= HERMIT_CRAB_SHELL_TIMEOUT_MS) {
+          const available = tank.shells.filter(s => !s.gone);
+          if (available.length === 0 && !this.targetShell) {
+            this.gone = true;
+            return;
+          }
+        }
+
+        // Find nearest settled shell
+        let nearest = null, nd = Infinity;
+        for (const s of tank.shells) {
+          if (s.gone || !s.settled) continue;
+          const d = Math.hypot(s.x - this.x, s.y - this.y);
+          if (d < nd) { nd = d; nearest = s; }
+        }
+        if (nearest) {
+          this.targetShell = nearest;
+          this.vx = Math.sign(nearest.x - this.x) * HERMIT_CRAB_SPEED * 1.5;
+          if (nd < this.radius + 16) {
+            nearest.gone  = true;
+            this.hasShell = true;
+            this.targetShell = null;
+          }
+        } else {
+          this._wander();
+        }
+      } else {
+        // Collect nearest coin/diamond within range
+        let nearestCoin = null, ncd = Infinity;
+        for (const c of tank.coins) {
+          if (c.gone) continue;
+          const d = Math.hypot(c.x - this.x, c.y - this.y);
+          if (d < HERMIT_CRAB_COLLECT_RADIUS && d < ncd) { ncd = d; nearestCoin = c; }
+        }
+        if (nearestCoin) {
+          this.vx = Math.sign(nearestCoin.x - this.x) * HERMIT_CRAB_SPEED * 1.2;
+          if (ncd < this.radius + nearestCoin.radius) {
+            this.goldCollected += nearestCoin.value;
+            money              += nearestCoin.value;
+            nearestCoin.gone    = true;
+            updateMoney();
+            if (this.goldCollected >= HERMIT_CRAB_GOLD_TARGET) {
+              tank.specialShells.push(new SpecialShell(this.x, this.y, Math.round(this.goldCollected)));
+              this.hasShell      = false;
+              this.goldCollected = 0;
+              this.radius       *= 1.1;
+              this.spawnTime     = now;
+            }
+          }
+        } else {
+          this._wander();
+        }
+      }
+
+      this.x += this.vx;
+      this.y  = H - 20;
+      if (this.x - this.radius < 0)  { this.x = this.radius;      this.vx =  Math.abs(this.vx); }
+      if (this.x + this.radius > W)  { this.x = W - this.radius;  this.vx = -Math.abs(this.vx); }
+    }
+    _wander() {
+      if (Math.random() < 0.005) this.vx = (Math.random() < 0.5 ? -1 : 1) * HERMIT_CRAB_SPEED;
+    }
+    draw() {
+      if (this.gone) return;
+      const r = this.radius;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      if (this.vx < 0) ctx.scale(-1, 1);
+
+      // Shell behind crab
+      if (this.hasShell) {
+        const p    = Math.min(1, this.goldCollected / HERMIT_CRAB_GOLD_TARGET);
+        const hue  = 30 + p * 20;
+        const sat  = 45 + p * 35;
+        const lig  = 52 - p * 12;
+        ctx.beginPath();
+        ctx.ellipse(2, 3, r * 1.35, r * 0.9, 0.25, 0, Math.PI * 2);
+        ctx.fillStyle   = `hsl(${hue},${sat}%,${lig}%)`;
+        ctx.strokeStyle = p > 0.4 ? '#b8860b' : '#8a6840';
+        ctx.lineWidth   = 1.5;
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Body
+      ctx.beginPath();
+      ctx.ellipse(0, -r * 0.18, r * 0.72, r * 0.52, 0, 0, Math.PI * 2);
+      ctx.fillStyle   = '#cc6633';
+      ctx.strokeStyle = '#aa4422';
+      ctx.lineWidth   = 1;
+      ctx.fill();
+      ctx.stroke();
+
+      // Claws
+      ctx.beginPath();
+      ctx.arc(r * 0.82, -r * 0.3, r * 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = '#cc6633';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-r * 0.82, -r * 0.3, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.beginPath();
+      ctx.arc(r * 0.3,  -r * 0.52, r * 0.14, 0, Math.PI * 2);
+      ctx.arc(-r * 0.3, -r * 0.52, r * 0.14, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  // ── Fish ─────────────────────────────────────────────────────────────────────
   class Fish {
     /**
      * @param {number} x
@@ -155,7 +538,7 @@
 
       this.lastEatenTime = performance.now();
       this.hungryTime    = null;
-      this.state         = 'normal';  // 'normal' | 'hungry' | 'dead'
+      this.state         = 'normal'; // 'normal' | 'hungry' | 'dead'
       this.deadDriftVy   = 0;
       this.bottomTime    = null;
       this.facingRight   = this.vx >= 0;
@@ -177,7 +560,7 @@
       // Coin/diamond drops
       this.lastCoinTime = performance.now();
 
-      // Behaviour system
+      // Wander behaviour
       this.behaviorType  = 'drift';
       this.behaviorTimer = DRIFT_INTERVAL_MIN + Math.floor(Math.random() * DRIFT_INTERVAL_RANGE);
       this.targetX       = null;
@@ -226,7 +609,6 @@
           T().foods.push(new Food(W / 2, FOOD_RADIUS));
         }
       }
-
       if (this.state === 'hungry' && now - this.hungryTime >= DEATH_AFTER_HUNGRY_MS) {
         this.state = 'dead';
         return;
@@ -267,19 +649,16 @@
           this._wander(HUNGRY_SEEK_SPEED);
         }
       } else {
-        this._wander(NORMAL_SPEED);
+        this._wander();
       }
 
-      this.x += this.vx;
-      this.y += this.vy;
+      this._applyMovement();
+      this._eatFood(now, tank);
 
-      const r = this.radius;
-      if (this.x - r < 0)  { this.x = r;     this.vx =  Math.abs(this.vx); }
-      if (this.x + r > W)  { this.x = W - r; this.vx = -Math.abs(this.vx); }
-      if (this.y - r < 0)  { this.y = r;     this.vy =  Math.abs(this.vy); }
-      if (this.y + r > H)  { this.y = H - r; this.vy = -Math.abs(this.vy); }
-
-      if (Math.abs(this.vx) > 0.01) this.facingRight = this.vx > 0;
+      // Clownfish bonding
+      if (this.type === 'clown' && (this.stage === 'large' || this.stage === 'king')) {
+        this._checkBonding(now, tank);
+      }
     }
 
     // ── Carnivore: seek and eat nearest guppy / small clownfish ──────────────
@@ -303,13 +682,10 @@
           this.hungryTime    = null;
           updateCount();
         } else {
-          const speed = NORMAL_SPEED * 1.5;
-          this.vx = (dx / dist) * speed;
-          this.vy = (dy / dist) * speed;
+          this._wander();
         }
-      } else {
-        this._wander(NORMAL_SPEED);
       }
+      this._applyMovement();
     }
 
     /** Nearest edible prey (guppy in T1; small clownfish in T2). */
@@ -322,9 +698,9 @@
           : (f.type === 'clownfish' && f.stage === 'guppy');
         if (!edible) continue;
         const d = Math.hypot(f.x - this.x, f.y - this.y);
-        if (d < bestDist) { bestDist = d; best = f; }
+        if (d < nd) { nd = d; nearest = f; }
       }
-      return best;
+      return nearest;
     }
 
     // ── 3-mode wander ─────────────────────────────────────────────────────────
@@ -340,9 +716,15 @@
           this.vy *= s;
         }
 
-      } else if (this.behaviorType === 'swim') {
-        const dx   = this.targetX - this.x;
-        const dy   = this.targetY - this.y;
+    _seekFood(foods) {
+      let nearest = null, nd = Infinity;
+      for (const f of foods) {
+        if (f.gone) continue;
+        const d = Math.hypot(f.x - this.x, f.y - this.y);
+        if (d < nd) { nd = d; nearest = f; }
+      }
+      if (nearest) {
+        const dx = nearest.x - this.x, dy = nearest.y - this.y;
         const dist = Math.hypot(dx, dy);
         if (dist < 5) {
           this._pickBehavior(baseSpeed);
@@ -352,16 +734,28 @@
           this.vx += (targetVx - this.vx) * SWIM_ACCEL;
           this.vy += (targetVy - this.vy) * SWIM_ACCEL;
         }
+      }
+    }
 
-      } else {  // 'dart'
-        const dx   = this.targetX - this.x;
-        const dy   = this.targetY - this.y;
+    _clownAdultBehavior(tank) {
+      let nearestCoral = null, nd = Infinity;
+      for (const c of tank.corals) {
+        const d = Math.hypot(c.x - this.x, c.y - this.y);
+        if (d < nd) { nd = d; nearestCoral = c; }
+      }
+      if (!nearestCoral) { this._wander(); return; }
+      if (nd > CLOWN_BOND_RADIUS) {
+        const dx = nearestCoral.x - this.x, dy = nearestCoral.y - this.y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 5) {
-          this._pickBehavior(baseSpeed);
-        } else {
-          this.vx = (dx / dist) * SWIM_DART_SPEED;
-          this.vy = (dy / dist) * SWIM_DART_SPEED;
+        this.vx += ((dx / dist) * NORMAL_SPEED - this.vx) * SWIM_ACCEL;
+        this.vy += ((dy / dist) * NORMAL_SPEED - this.vy) * SWIM_ACCEL;
+      } else {
+        this._wander();
+        // gentle nudge back toward coral centre if drifting away
+        const dx = nearestCoral.x - this.x, dy = nearestCoral.y - this.y;
+        if (nd > CLOWN_BOND_RADIUS * 0.75) {
+          this.vx += dx * 0.01;
+          this.vy += dy * 0.01;
         }
       }
     }
@@ -393,7 +787,6 @@
         const d = Math.hypot(f.x - this.x, f.y - this.y);
         if (d < bestDist) { bestDist = d; best = f; }
       }
-      return best;
     }
 
     _eatFood(food, now) {
@@ -418,6 +811,13 @@
       } else if (this.type === 'normal' && this.stage === 'large' && this.pelletsEaten >= PELLETS_TO_KING) {
         this.stage  = 'king';
         this.radius = FISH_RADIUS_KING;
+        if (this.type !== 'carnivore') this.hue = 45; // gold
+      } else if (this.pelletsEaten >= PELLETS_TO_LARGE && this.stage !== 'large' && this.stage !== 'king') {
+        this.stage  = 'large';
+        this.radius = FISH_RADIUS_LARGE;
+      } else if (this.pelletsEaten >= PELLETS_TO_MEDIUM && this.stage === 'guppy') {
+        this.stage  = 'medium';
+        this.radius = FISH_RADIUS_MEDIUM;
       }
     }
 
@@ -433,33 +833,43 @@
     _drawNormalFish() {
       const isDead      = this.state === 'dead';
       const isHungry    = this.state === 'hungry';
-      const isCarnivore = this.type  === 'carnivore';
-      const isKing      = this.stage === 'king';
-      const alpha       = isDead ? 0.45 : 1;
       const r           = this.radius;
 
       ctx.save();
-      ctx.globalAlpha = alpha;
       ctx.translate(this.x, this.y);
       if (isDead) ctx.scale(1, -1);
       if (!this.facingRight) ctx.scale(-1, 1);
+      if (isDead)            ctx.scale(1, -1);
 
       let bodyColor;
-      if (isDead) {
-        bodyColor = '#888888';
-      } else if (isCarnivore) {
-        bodyColor = isHungry ? `hsl(${this.hue}, 90%, 45%)` : `hsl(${this.hue}, 80%, 55%)`;
-      } else if (isKing) {
-        bodyColor = isHungry ? 'hsl(50,90%,55%)' : 'hsl(45,100%,65%)';
-      } else {
-        bodyColor = isHungry ? `hsl(${this.hue}, 90%, 55%)` : `hsl(${this.hue}, 70%, 70%)`;
-      }
+      if (isCarnivore)      bodyColor = isDead ? '#555' : `hsl(${this.hue}, 80%, 55%)`;
+      else if (isKing)      bodyColor = isDead ? '#555' : 'hsl(45, 100%, 65%)';
+      else if (isClown)     bodyColor = isDead ? '#555' : '#FF6B35';
+      else                  bodyColor = isDead ? '#555' : `hsl(${this.hue}, 70%, 60%)`;
 
       // Body ellipse
       ctx.beginPath();
-      ctx.ellipse(0, 0, r, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, r, r * 0.55, 0, 0, Math.PI * 2);
       ctx.fillStyle = bodyColor;
+      if (!isDead && isKing) { ctx.shadowColor = 'hsl(45,100%,75%)'; ctx.shadowBlur = 12; }
       ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Clownfish white stripes with black outline (clipped to body)
+      if (isClown && !isDead) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r, r * 0.55, 0, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        ctx.fillRect(-r * 0.22, -r * 0.6, r * 0.32, r * 1.2);
+        ctx.fillRect( r * 0.12, -r * 0.6, r * 0.26, r * 1.2);
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth   = 1;
+        ctx.strokeRect(-r * 0.22, -r * 0.6, r * 0.32, r * 1.2);
+        ctx.strokeRect( r * 0.12, -r * 0.6, r * 0.26, r * 1.2);
+        ctx.restore();
+      }
 
       // King crown
       if (isKing && !isDead) {
@@ -488,9 +898,10 @@
         ctx.moveTo(-r * 0.3, -r * 0.6);
         ctx.quadraticCurveTo(0, -r * 1.2, r * 0.3, -r * 0.6);
         ctx.closePath();
-        ctx.fillStyle = isCarnivore
-          ? `hsl(${this.hue}, 70%, 40%)`
-          : (isKing ? 'hsl(45,80%,50%)' : `hsl(${this.hue}, 60%, 55%)`);
+        if (isClown)       ctx.fillStyle = '#e05010';
+        else if (isCarnivore) ctx.fillStyle = `hsl(${this.hue}, 70%, 40%)`;
+        else if (isKing)   ctx.fillStyle = 'hsl(45,80%,50%)';
+        else               ctx.fillStyle = `hsl(${this.hue}, 60%, 55%)`;
         ctx.fill();
       }
 
@@ -498,7 +909,7 @@
       if (this.stage === 'large' || isKing) {
         ctx.beginPath();
         ctx.ellipse(0, r * 0.4, r * 0.35, r * 0.18, Math.PI / 5, 0, Math.PI * 2);
-        ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
+        ctx.fillStyle = isClown ? '#e05010' : `hsl(${this.hue}, 50%, 60%)`;
         ctx.fill();
       }
 
@@ -628,7 +1039,7 @@
 
       if (isHungry) {
         ctx.save();
-        ctx.strokeStyle = '#ffa040';
+        ctx.strokeStyle = isCarnivore ? '#ff2200' : '#ffa040';
         ctx.lineWidth   = 2;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
@@ -636,10 +1047,10 @@
         ctx.stroke();
         ctx.restore();
         ctx.save();
-        ctx.fillStyle = '#ffa040';
+        ctx.fillStyle = isCarnivore ? '#ff2200' : '#ffa040';
         ctx.font      = 'bold 10px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Hungry!', this.x, this.y - r - 10);
+        ctx.fillText(isCarnivore ? 'Hunting!' : 'Hungry!', this.x, this.y - r - 10);
         ctx.restore();
       }
 
@@ -778,16 +1189,8 @@
         if (this.y >= H - FOOD_RADIUS) this.gone = true;
       }
     }
-
-    draw() {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, FOOD_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle   = '#c8f060';
-      ctx.shadowColor = '#aaff00';
-      ctx.shadowBlur  = 6;
-      ctx.fill();
-      ctx.restore();
+    get aliveFishCount() {
+      return this.fishes.filter(f => f.state !== 'dead').length;
     }
   }
 
@@ -962,7 +1365,15 @@
     }
 
     updateCount();
+    updateCarnivoreAutoFeederBtn();
+
     requestAnimationFrame(loop);
+  }
+
+  function removeGone(arr) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      if (arr[i].gone) arr.splice(i, 1);
+    }
   }
 
   function drawBackground() {
@@ -972,25 +1383,26 @@
     for (let i = 0; i < 6; i++) {
       const bx = ((Math.sin(t * 0.4 + i * 1.9) + 1) / 2) * W;
       const by = ((Math.cos(t * 0.3 + i * 2.3) + 1) / 2) * H;
-      const r  = 30 + Math.sin(t + i) * 10;
-      const g  = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+      const bubbleRadius = 30 + Math.sin(t + i) * 10;
+      const g  = ctx.createRadialGradient(bx, by, 0, bx, by, bubbleRadius);
       g.addColorStop(0, '#7ecfff');
       g.addColorStop(1, 'transparent');
       ctx.beginPath();
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.arc(bx, by, bubbleRadius, 0, Math.PI * 2);
       ctx.fillStyle = g;
       ctx.fill();
     }
     ctx.restore();
   }
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
   function updateCount() {
     const alive = T().fishes.filter(f => f.state !== 'dead').length;
     countEl.textContent = `Fish: ${alive}`;
   }
 
   function updateMoney() {
-    moneyEl.textContent = `💰 $${money}`;
+    moneyEl.textContent = `💰 $${Math.round(money)}`;
   }
 
   function flashNoMoney() {
@@ -1111,6 +1523,7 @@
 
   // ── Shop wiring ───────────────────────────────────────────────────────────────
   document.getElementById('add-fish-btn').addEventListener('click', () => spawnFish('normal'));
+  document.getElementById('add-clown-btn').addEventListener('click', () => spawnFish('clown'));
   document.getElementById('add-carnivore-btn').addEventListener('click', () => spawnFish('carnivore'));
 
   document.getElementById('food-quality-btn').addEventListener('click', () => {
@@ -1178,6 +1591,6 @@
 
   // ── Start ─────────────────────────────────────────────────────────────────────
   updateMoney();
-  refreshShopButtons();
+  switchTank(0);
   requestAnimationFrame(loop);
 })();
