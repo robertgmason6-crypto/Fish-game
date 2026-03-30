@@ -13,9 +13,10 @@
   const DEATH_AFTER_HUNGRY_MS = 15_000;
 
   // Carnivore
-  const CARNIVORE_SATIATED_MS        = 15_000;
+  const CARNIVORE_SATIATED_MS         = 15_000;
+  const CARNIVORE_HUNGRY_DEATH_MS     = 15_000;
   const CARNIVORE_DIAMOND_INTERVAL_MS = 15_000;
-  const CARNIVORE_HUNGRY_SPEED_MULT  = 1.5;
+  const CARNIVORE_HUNGRY_SPEED_MULT   = 1.5;
 
   // Dead fish
   const DEAD_DRIFT_MAX        = 0.5;
@@ -559,9 +560,9 @@
         // Invalidate target if it disappeared
         if (this.targetShell && this.targetShell.gone) this.targetShell = null;
 
-        // Die if no shell found after timeout
+        // Die if no shell found after timeout (check for any shell, settled or falling)
         if (now - this.spawnTime >= HERMIT_CRAB_SHELL_TIMEOUT_MS) {
-          const available = tank.shells.filter(s => !s.gone && s.settled);
+          const available = tank.shells.filter(s => !s.gone);
           if (available.length === 0 && !this.targetShell) {
             this.gone = true;
             return;
@@ -789,7 +790,7 @@
         this.carnivoreHungryTime = now;
       }
       if (this.carnivoreState === 'hungry' &&
-          now - this.carnivoreHungryTime >= CARNIVORE_SATIATED_MS) {
+          now - this.carnivoreHungryTime >= CARNIVORE_HUNGRY_DEATH_MS) {
         this.state = 'dead';
         return;
       }
