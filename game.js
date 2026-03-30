@@ -18,7 +18,7 @@
   'use strict';
 
   // ── Constants ─────────────────────────────────────────────────────────────────
-  const HUNGER_START_MS       = 20_000;
+  const HUNGER_START_MS       = 15_000;
   const DEATH_AFTER_HUNGRY_MS = 15_000;
   const NORMAL_SPEED          = 1.2;
   const HUNGRY_SEEK_SPEED     = 3.0;
@@ -36,9 +36,9 @@
   const FISH_RADIUS_CARNIVORE = 75;   // bigger than king
 
   // Growth thresholds (cumulative pellets)
-  const PELLETS_TO_MEDIUM = 2;
-  const PELLETS_TO_LARGE  = 7;   // 2 + 5
-  const PELLETS_TO_KING   = 47;  // 7 + 40
+  const PELLETS_TO_MEDIUM = 3;
+  const PELLETS_TO_LARGE  = 8;   // 3 + 5
+  const PELLETS_TO_KING   = 48;  // 8 + 40
 
   // Drawing
   const TAIL_LENGTH_RATIO          = 0.57;
@@ -61,7 +61,7 @@
 
   // Coins / Diamonds – doubled
   const COIN_RADIUS          = 28;
-  const DIAMOND_RADIUS       = 24;
+  const DIAMOND_RADIUS       = 30;
   const COIN_DRIFT_SPEED     = 0.8;
   const COIN_CLICK_TOLERANCE = 4;
   const COIN_INTERVAL_MS     = 15_000;
@@ -71,10 +71,10 @@
   const COIN_VALUE_CARNIVORE = 200;
 
   // Tank 2 – coral
-  const CORAL_GROWTH_MS = 15 * 60 * 1000;  // 15 minutes per stage
+  const CORAL_GROWTH_MS = 15_000;  // 15 seconds per stage
   const NEST_BABY_MS    = 15_000;           // one baby every 15 seconds
   const CORAL_NEST_DIST = 150;              // proximity for nesting
-  const CORAL_COST      = 500;
+  const CORAL_COST      = 200;
 
   // Tank 2 – clown-fish sell values
   const CLOWNFISH_SELL_SMALL   = 50;
