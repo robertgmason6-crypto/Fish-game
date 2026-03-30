@@ -199,3 +199,62 @@ h1 {
 .legend-dot.large-fish  { background: hsl(42,70%,60%); width: 20px; height: 20px; }
 .legend-dot.king-fish   { background: hsl(45,100%,65%); width: 22px; height: 22px; border: 2px solid #ffd700; }
 .legend-dot.carnivore-fish { background: hsl(10,80%,55%); width: 18px; height: 18px; }
+
+/* ── Tank selector tabs ─────────────────────────────────────────────────────── */
+#tank-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tank-tab {
+  background: #0e2a4a;
+  color: #7ecfff;
+  border: 2px solid #3aa0ff44;
+  border-radius: 6px 6px 0 0;
+  padding: 6px 18px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.tank-tab:hover {
+  background: #1a3d6a;
+  border-color: #3aa0ff88;
+}
+
+.tank-tab.active {
+  background: #1e4e8c;
+  border-color: #3aa0ff;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* ── Tank 2 shop buttons ────────────────────────────────────────────────────── */
+.shop-btn-coral {
+  border-color: #e8856a66;
+}
+.shop-btn-coral:hover { background: #5c2a1a; }
+
+.shop-btn-sell {
+  border-color: #44ff9966;
+}
+.shop-btn-sell:hover { background: #1a5c30; }
+
+.shop-btn-active {
+  background: #1a5c30 !important;
+  border-color: #44ff99 !important;
+  color: #cfffdf !important;
+}
+
+/* ── Clownfish legend dots ──────────────────────────────────────────────────── */
+.legend-dot.clown-male {
+  background: radial-gradient(circle, #3296ff 40%, #ff6b00 100%);
+  width: 14px;
+  height: 14px;
+}
+.legend-dot.clown-female {
+  background: radial-gradient(circle, #ff64a0 40%, #ff6b00 100%);
+  width: 14px;
+  height: 14px;
+}
