@@ -12,21 +12,48 @@
   <div id="controls">
     <span id="fish-count">Fish: 0</span>
     <span id="money-display">💰 $500</span>
+    <button id="test-money-btn" class="test-btn">+ $1000 (Test)</button>
     <span id="no-money-msg" class="no-money hidden">Not enough money!</span>
+  </div>
+
+  <div id="tank-tabs">
+    <button class="tank-tab active">🐠 Tank 1</button>
+    <button class="tank-tab">🪸 Tank 2</button>
+    <button class="tank-tab">🦀 Tank 3</button>
   </div>
 
   <div id="shop">
     <div class="shop-category">
       <span class="shop-title">🐟 Fish</span>
       <button id="add-fish-btn" class="shop-btn">Guppy ($100)</button>
+      <button id="add-clown-btn" class="shop-btn clown-btn">Clown Fish ($150)</button>
       <button id="add-carnivore-btn" class="shop-btn shop-btn-red">Carnivore ($1000)</button>
     </div>
+
+    <div id="coral-section" class="shop-category">
+      <span class="shop-title">🪸 Coral</span>
+      <button id="add-coral-btn" class="shop-btn">Coral ($200)</button>
+    </div>
+
+    <div id="oyster-section" class="shop-category" style="display:none">
+      <span class="shop-title">🦪 Oysters</span>
+      <button id="add-oyster-btn" class="shop-btn">Oyster Rock ($300)</button>
+      <button id="reseed-btn" class="shop-btn">Reseed All Rocks ($150 each)</button>
+    </div>
+
+    <div id="hermit-section" class="shop-category" style="display:none">
+      <span class="shop-title">🦀 Crabs</span>
+      <button id="add-hermit-btn" class="shop-btn">Hermit Crab ($50)</button>
+    </div>
+
     <div class="shop-category">
       <span class="shop-title">🍖 Food</span>
       <button id="food-quality-btn" class="shop-btn">Better Food ($200) [0/2]</button>
       <button id="multi-food-btn" class="shop-btn">Multi-Food ($200) [1×/10×]</button>
       <button id="auto-feeder-btn" class="shop-btn">Auto Feeder ($1000)</button>
+      <button id="carnivore-auto-feeder-btn" class="shop-btn shop-btn-red" style="display:none">Carnivore Auto Feeder ($10000)</button>
     </div>
+
     <div class="shop-category">
       <span class="shop-title">🏆 Tank</span>
       <button id="tank-level-btn" class="shop-btn">Tank Level Up ($1000) [Lv.0]</button>
